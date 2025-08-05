@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>CTF Live - Mobile UI</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Monaco', monospace;
+            background-color: #000000;
+            color: #FFFFFF;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        /* Scoreboard */
+        .scoreboard {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            border-radius: 10px;
+            overflow: hidden;
+            z-index: 1000;
+        }
+
+        .redTeamScore {
+            background-color: #FF3333;
+            width: 75px;
+            height: 45px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .blueTeamScore {
+            background-color: #3366FF;
+            width: 75px;
+            height: 45px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .teamLabel {
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .teamScoreNumber {
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        /* Power-up Status */
+        .powerUpStatus {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            border-radius: 8px;
+            border: 2px solid #00FFFF;
+            padding: 6px 8px;
+            display: flex;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .powerUpIcon {
+            width: 20px;
+            height: 20px;
+            filter: brightness(0) saturate(100%) invert(64%) sepia(100%) saturate(2000%) hue-rotate(180deg);
+            margin-right: 6px;
+        }
+
+        .powerUpTimer {
+            color: #00FFFF;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* Contained Map Area - Extended to action buttons */
+        #map {
+            position: absolute;
+            top: 80px;
+            left: 0;
+            right: 0;
+            bottom: 94px;
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+            filter: brightness(0.6) contrast(1.4);
+        }
+
+
+        /* Bottom Action Hub - 3 Button Layout */
+        .actionInterface {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            z-index: 2000;
+            padding: 0 60px;
+        }
+
+        .actionButton {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            pointer-events: auto;
+        }
+
+        .trapButton, .bagButton {
+            width: 50px;
+            height: 50px;
+            border-radius: 25px;
+            border: 2px solid white;
+            background-color: rgba(0, 0, 0, 0.8);
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            backdrop-filter: blur(10px);
+        }
+
+        .killButton {
+            width: 75px;
+            height: 75px;
+            border-radius: 37.5px;
+            border: 3px solid white;
+            font-size: 28px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(20px);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .actionLabel {
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+
+        .inventoryButton:active {
+            transform: scale(0.95);
+        }
+
+        .inventoryBadge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: #FF0000;
+            border-radius: 6px;
+            width: 12px;
+            height: 12px;
+            border: 1px solid white;
+        }
+
+
+
+        .redTeamButton {
+            background-color: #FF3333;
+            box-shadow: 0 4px 12px rgba(255,51,51,0.4);
+        }
+
+        .blueTeamButton {
+            background-color: #3366FF;
+            box-shadow: 0 4px 12px rgba(51,102,255,0.4);
+        }
+
+        .killButton:active {
+            transform: scale(0.95);
+        }
+
+        /* Map Elements */
+        .spawn-zone {
+            border-radius: 50%;
+            border: 2px solid;
+            background-color: rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 8px;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.9);
+        }
+
+        .red-spawn {
+            border-color: #FF3333;
+            background-color: rgba(255, 51, 51, 0.2);
+        }
+
+        .blue-spawn {
+            border-color: #3366FF;
+            background-color: rgba(51, 102, 255, 0.2);
+        }
+
+        .player-dot {
+            border-radius: 50%;
+            border: 2px solid;
+            background-color: rgba(255, 255, 255, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            z-index: 9998 !important;
+            position: relative;
+        }
+
+        .red-player {
+            background-color: #FF3333;
+        }
+
+        .blue-player {
+            background-color: #3366FF;
+        }
+
+        .current-player {
+            border-color: #FFFF00;
+            border-width: 3px;
+            box-shadow: 0 0 8px rgba(255, 255, 0, 0.6);
+        }
+
+        .flag-icon {
+            font-size: 32px !important;
+            text-shadow: 4px 4px 8px rgba(0,0,0,1) !important;
+            background-color: #FFFFFF !important;
+            border-radius: 50% !important;
+            border: 8px solid #FFFF00 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 50px !important;
+            height: 50px !important;
+            z-index: 999999 !important;
+            position: relative !important;
+            box-shadow: 0 0 50px rgba(255, 255, 0, 1), 0 8px 16px rgba(0,0,0,1) !important;
+            animation: flagGlow 0.8s ease-in-out infinite !important;
+        }
+
+        .blue-flag {
+            border-color: #3366FF !important;
+            box-shadow: 0 0 30px rgba(51, 102, 255, 1), 0 6px 12px rgba(0,0,0,0.8) !important;
+        }
+
+        .red-flag {
+            border-color: #FF3333 !important;
+            box-shadow: 0 0 30px rgba(255, 51, 51, 1), 0 6px 12px rgba(0,0,0,0.8) !important;
+        }
+
+        @keyframes flagGlow {
+            0%, 100% { 
+                box-shadow: 0 0 30px rgba(255, 255, 0, 1), 0 6px 12px rgba(0,0,0,0.8);
+                transform: scale(1);
+            }
+            50% { 
+                box-shadow: 0 0 50px rgba(255, 255, 0, 1), 0 6px 12px rgba(0,0,0,0.8);
+                transform: scale(1.1);
+            }
+        }
+
+        .power-up {
+            font-size: 20px;
+            text-shadow: 3px 3px 6px rgba(0,0,0,1);
+            background-color: #FFFFFF !important;
+            border-radius: 8px;
+            border: 4px solid #00FFFF !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px !important;
+            height: 32px !important;
+            z-index: 99998 !important;
+            position: relative;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 1), 0 6px 12px rgba(0,0,0,0.8) !important;
+            animation: powerGlow 1.5s ease-in-out infinite;
+        }
+
+        @keyframes powerGlow {
+            0%, 100% { 
+                box-shadow: 0 0 8px rgba(0, 255, 255, 0.6), 0 2px 4px rgba(0,0,0,0.5);
+                transform: translateY(0px) scale(1);
+            }
+            50% { 
+                box-shadow: 0 0 12px rgba(0, 255, 255, 0.8), 0 2px 4px rgba(0,0,0,0.5);
+                transform: translateY(-2px) scale(1.05);
+            }
+        }
+
+        .proximity-ring {
+            border: 2px solid #FFFF00;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 0, 0.1);
+            animation: pulse 1.5s infinite;
+        }
+
+        .power-up {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            border: 1px solid rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            animation: float 2s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-2px); }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* Kill Overlay */
+        .killOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .killOverlay.hidden {
+            display: none;
+        }
+
+        .killTitle {
+            font-size: 32px;
+            font-weight: bold;
+            color: #FF3333;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            animation: deathPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes deathPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+        }
+
+        .killDetails {
+            font-size: 18px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .killMethod {
+            font-size: 24px;
+            padding: 8px;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .spawnDirection {
+            margin-top: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .directionText {
+            font-size: 16px;
+            color: #FFFF00;
+            font-weight: bold;
+        }
+
+        .directionArrow {
+            font-size: 48px;
+            color: #FFFF00;
+            animation: bounce 1.5s ease-in-out infinite;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .respawnTimer {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #CCCCCC;
+        }
+
+        /* Respawn Overlay */
+        .respawnOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(6px);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .respawnOverlay.hidden {
+            display: none;
+        }
+
+        .respawnTitle {
+            font-size: 28px;
+            font-weight: bold;
+            color: #00FF00;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .respawnCountdown {
+            font-size: 48px;
+            font-weight: bold;
+            color: #FFFF00;
+            margin: 20px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .respawnCountdown.blinking {
+            animation: respawnBlink 1s ease-in-out;
+        }
+
+        @keyframes respawnBlink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        .respawnOverlay.respawnComplete {
+            background-color: rgba(255, 255, 255, 0.95);
+            transition: background-color 0.3s ease;
+        }
+
+        .respawnOverlay.respawnComplete .respawnTitle {
+            color: #000000;
+        }
+
+        .respawnOverlay.respawnComplete .respawnCountdown {
+            color: #000000;
+        }
+
+        /* Item Action Buttons */
+        .itemActions {
+            position: absolute;
+            bottom: 178px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            z-index: 2002;
+            pointer-events: auto;
+        }
+
+        .itemActions.hidden {
+            display: none;
+        }
+
+        .itemAction {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.85);
+            border-radius: 20px;
+            padding: 4px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: all 0.2s;
+            gap: 6px;
+            pointer-events: auto;
+            z-index: 2003;
+        }
+
+        .itemAction:hover {
+            background-color: rgba(0, 0, 0, 0.9);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+
+        .itemActionIcon {
+            width: 24px;
+            height: 24px;
+            border-radius: 12px;
+            border: 1px solid white;
+            background-color: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            animation: itemPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes itemPulse {
+            0%, 100% { 
+                box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+                transform: scale(1);
+            }
+            50% { 
+                box-shadow: 0 0 16px rgba(255, 255, 255, 0.8);
+                transform: scale(1.05);
+            }
+        }
+
+        .itemActionText {
+            color: white;
+            font-size: 11px;
+            text-align: left;
+            font-weight: bold;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+
+        .itemActionDisabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .itemActionDisabled .itemActionIcon {
+            border-color: #666;
+            animation: none;
+        }
+
+        /* Item Usage Message */
+        .itemMessage {
+            position: absolute;
+            bottom: 119px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+            z-index: 2500;
+            animation: messageBlink 1s ease-in-out infinite;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .itemMessage.hidden {
+            display: none;
+        }
+
+        @keyframes messageBlink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        /* Hide Leaflet controls for clean mobile UI */
+        .leaflet-control-container {
+            display: none;
+        }
+
+        .leaflet-tile {
+            filter: brightness(0.5) contrast(1.5);
+        }
+    </style>
+</head>
+<body>
+    <!-- Scoreboard -->
+    <div class="scoreboard">
+        <div class="redTeamScore">
+            <div class="teamLabel">RED</div>
+            <div class="teamScoreNumber">1</div>
+        </div>
+        <div class="blueTeamScore">
+            <div class="teamLabel">BLUE</div>
+            <div class="teamScoreNumber">2</div>
+        </div>
+    </div>
+
+    <!-- Power-up Status -->
+    <div class="powerUpStatus">
+        <img src="assets/images/ghost.png" class="powerUpIcon" alt="Invisibility">
+        <div class="powerUpTimer">3.2s</div>
+    </div>
+
+    <!-- Full-screen Map -->
+    <div id="map"></div>
+
+
+    <!-- Item Action Buttons (hidden by default) -->
+    <div id="itemActions" class="itemActions hidden">
+        <div class="itemAction" onclick="useInvisibility()">
+            <div class="itemActionIcon"><img src="assets/images/ghost.png" style="width: 16px; height: 16px; object-fit: contain;"></div>
+            <div class="itemActionText">Invisible 5s</div>
+        </div>
+        <div class="itemAction itemActionDisabled" onclick="useInvincibility()">
+            <div class="itemActionIcon"><img src="assets/images/shield.png" style="width: 16px; height: 16px; object-fit: contain;"></div>
+            <div class="itemActionText">Invincible 10s</div>
+        </div>
+        <div class="itemAction" onclick="useProximityMine()">
+            <div class="itemActionIcon"><img src="assets/images/mine.png" style="width: 16px; height: 16px; object-fit: contain;"></div>
+            <div class="itemActionText">Place Mine</div>
+        </div>
+    </div>
+
+    <!-- Action Buttons - 3 Button Layout -->
+    <div class="actionInterface">
+        <div class="actionButton">
+            <button class="trapButton" onclick="toggleTrapMenu()"><img src="assets/images/speaker.png" style="width: 32px; height: 32px; object-fit: cover;"></button>
+            <div class="actionLabel">Speak</div>
+        </div>
+        <div class="actionButton">
+            <button class="killButton" onclick="handleKill()"><img src="assets/images/knife.png" style="width: 40px; height: 40px; object-fit: cover;"></button>
+            <div class="actionLabel">Knife</div>
+        </div>
+        <div class="actionButton">
+            <button class="bagButton" onclick="toggleItemActions()"><img src="assets/images/backpack.png" style="width: 32px; height: 32px; object-fit: cover;"></button>
+            <div class="actionLabel">Items</div>
+            <div class="inventoryBadge"></div>
+        </div>
+    </div>
+
+    <!-- Kill Overlay (hidden by default) -->
+    <div id="killOverlay" class="killOverlay hidden">
+        <div class="killTitle">YOU HAVE BEEN ELIMINATED</div>
+        <div class="killDetails">
+            <span>Killed by</span>
+            <span id="killerName">Johnson</span>
+            <span class="killMethod" id="killMethod">🗡️</span>
+        </div>
+        <div class="spawnDirection">
+            <div class="directionText">Return to Spawn Point</div>
+            <div class="directionArrow" id="directionArrow">⬆️</div>
+        </div>
+    </div>
+
+    <!-- Respawn Overlay (hidden by default) -->
+    <div id="respawnOverlay" class="respawnOverlay hidden">
+        <div class="respawnTitle">RESPAWNING</div>
+        <div class="respawnCountdown" id="respawnCountdown">3</div>
+    </div>
+
+    <!-- Item Message (hidden by default) -->
+    <div id="itemMessage" class="itemMessage hidden"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Maynooth University South Campus coordinates
+        const mapCenter = [53.3760, -6.5969]; // South Campus area
+        const redSpawn = [53.3775, -6.5969];
+        const blueSpawn = [53.3725, -6.5969];
+        
+        // Initialize full-screen map
+        const map = L.map('map', {
+            center: mapCenter,
+            zoom: 17,
+            zoomControl: false,
+            attributionControl: false,
+            dragging: false,
+            scrollWheelZoom: false,
+            doubleClickZoom: false,
+            boxZoom: false,
+            keyboard: false,
+            tap: false
+        });
+
+        // Dark map tiles for better contrast
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+        }).addTo(map);
+
+        // Dynamic spawn zones - enemy at top, home at bottom (Red team perspective)
+        const enemySpawnZone = [
+            [53.3785, -6.5995], // Top-left of enemy zone (blue for red team)
+            [53.3785, -6.5943], // Top-right of enemy zone
+            [53.3775, -6.5943], // Bottom-right of enemy zone
+            [53.3775, -6.5995]  // Bottom-left of enemy zone
+        ];
+
+        const homeSpawnZone = [
+            [53.3745, -6.5995], // Top-left of home zone (red for red team)
+            [53.3745, -6.5943], // Top-right of home zone
+            [53.3735, -6.5943], // Bottom-right of home zone
+            [53.3735, -6.5995]  // Bottom-left of home zone
+        ];
+
+        // Enemy spawn at top (Blue for Red team) - clickable
+        const enemySpawn = L.polygon(enemySpawnZone, {
+            color: '#3366FF',
+            weight: 2,
+            opacity: 0.8,
+            fillColor: '#3366FF',
+            fillOpacity: 0.2,
+            dashArray: '5, 5'
+        }).addTo(map);
+        
+
+        // Home spawn at bottom (Red for Red team) - clickable  
+        const homeSpawn = L.polygon(homeSpawnZone, {
+            color: '#FF3333',
+            weight: 2,
+            opacity: 0.8,
+            fillColor: '#FF3333',
+            fillOpacity: 0.2,
+            dashArray: '5, 5'
+        }).addTo(map);
+        
+        homeSpawn.on('click', function() {
+            // Show respawn countdown when clicking home spawn
+            showRespawnOverlay(3);
+        });
+
+
+        // Add flags with absolute positioning in their respective spawn zones
+        // Enemy flag (Blue) - in upper spawn zone
+        const enemyFlagDiv = document.createElement('div');
+        enemyFlagDiv.className = 'enemy-flag-absolute';
+        enemyFlagDiv.style.cssText = `
+            position: absolute;
+            left: 50%;
+            top: 110px;
+            transform: translate(-50%, -50%);
+            background-color: #FFFFFF;
+            border: 6px solid #3366FF;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1500;
+            cursor: pointer;
+            box-shadow: 0 0 30px rgba(51, 102, 255, 1), 0 6px 12px rgba(0,0,0,0.8);
+            animation: flagGlow 0.8s ease-in-out infinite;
+        `;
+        
+        const enemyFlagImg = document.createElement('img');
+        enemyFlagImg.src = 'assets/images/map_flag_blue.png';
+        enemyFlagImg.style.cssText = `
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+        `;
+        enemyFlagDiv.appendChild(enemyFlagImg);
+        
+        enemyFlagDiv.onclick = () => {
+            alert('🚩 ENEMY FLAG CAPTURED!\n\nYou are now carrying the enemy flag.\nReturn to your base to score!');
+        };
+        document.body.appendChild(enemyFlagDiv);
+        
+        console.log('🔵 BLUE FLAG - positioned at top spawn zone', enemyFlagDiv);
+
+        // Home flag (Red) - in lower spawn zone  
+        const homeFlagDiv = document.createElement('div');
+        homeFlagDiv.className = 'home-flag-absolute';
+        homeFlagDiv.style.cssText = `
+            position: absolute;
+            left: 50%;
+            bottom: 120px;
+            transform: translate(-50%, -50%);
+            background-color: #FFFFFF;
+            border: 6px solid #FF3333;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1500;
+            cursor: pointer;
+            box-shadow: 0 0 30px rgba(255, 51, 51, 1), 0 6px 12px rgba(0,0,0,0.8);
+            animation: flagGlow 0.8s ease-in-out infinite;
+        `;
+        
+        const homeFlagImg = document.createElement('img');
+        homeFlagImg.src = 'assets/images/map_flag_red.png';
+        homeFlagImg.style.cssText = `
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+        `;
+        homeFlagDiv.appendChild(homeFlagImg);
+        
+        document.body.appendChild(homeFlagDiv);
+        
+        console.log('🔴 RED FLAG - positioned at bottom spawn zone', homeFlagDiv);
+        
+
+        // Minimal player dots (South Campus positions)
+        const teamPlayers = [
+            [53.3770, -6.5965], // Current player (Master Chief)
+            [53.3768, -6.5972], // Teammate 1 (Cortana)
+            [53.3772, -6.5961]   // Teammate 2 (Arbiter)
+        ];
+
+        teamPlayers.forEach((pos, index) => {
+            const isCurrentPlayer = index === 0;
+            const initials = ['MC', 'C', 'A'][index];
+            L.marker(pos, {
+                icon: L.divIcon({
+                    className: `player-dot red-player ${isCurrentPlayer ? 'current-player' : ''}`,
+                    html: initials,
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                }),
+                zIndexOffset: 9000
+            }).addTo(map);
+        });
+
+        // Enemy player (Johnson)
+        const enemyPos = [53.3755, -6.5955];
+        L.marker(enemyPos, {
+            icon: L.divIcon({
+                className: 'player-dot blue-player',
+                html: 'J',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            }),
+            zIndexOffset: 9000
+        }).addTo(map);
+
+        // Add power-ups with absolute positioning using image assets
+        const powerUpElements = [
+            { type: 'assets/images/ghost.png', name: 'Invisibility', id: 'invisibility', left: '30%', top: '40%' },
+            { type: 'assets/images/shield.png', name: 'Invincibility', id: 'invincibility', left: '70%', top: '60%' },
+            { type: 'assets/images/mine.png', name: 'Proximity Mine', id: 'mine', left: '50%', top: '50%' }
+        ];
+
+        powerUpElements.forEach((powerUp, index) => {
+            const powerUpDiv = document.createElement('div');
+            powerUpDiv.className = 'power-up-absolute';
+            powerUpDiv.style.cssText = `
+                position: absolute;
+                left: ${powerUp.left};
+                top: ${powerUp.top};
+                transform: translate(-50%, -50%);
+                border: 4px solid #00FFFF;
+                border-radius: 8px;
+                width: 40px;
+                height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 50000;
+                cursor: pointer;
+                box-shadow: 0 0 8px rgba(0, 255, 255, 0.6), 0 2px 4px rgba(0,0,0,0.5);
+                animation: powerGlow 1.5s ease-in-out infinite;
+            `;
+            
+            const img = document.createElement('img');
+            img.src = powerUp.type;
+            img.style.cssText = `
+                width: 28px;
+                height: 28px;
+                object-fit: contain;
+            `;
+            powerUpDiv.appendChild(img);
+            
+            powerUpDiv.onclick = () => collectPowerUp(powerUp.id, powerUp.name, powerUpDiv);
+            document.body.appendChild(powerUpDiv);
+            
+            console.log(`POWER-UP ${index + 1}: ${powerUp.name} (${powerUp.type}) positioned at ${powerUp.left}, ${powerUp.top}`);
+        });
+
+        // Minimal proximity ring
+        L.circle(teamPlayers[0], {
+            radius: 12,
+            color: '#FFFF00',
+            weight: 2,
+            opacity: 0.9,
+            fillColor: '#FFFF00',
+            fillOpacity: 0.1
+        }).addTo(map);
+
+        // Timer simulation
+        let timeRemaining = 1.2;
+        const timerElement = document.getElementById('timer');
+        
+        function updateTimer() {
+            timeRemaining -= 0.1;
+            if (timeRemaining <= 0) {
+                timeRemaining = 2.0;
+            }
+            timerElement.textContent = timeRemaining.toFixed(1) + 's';
+        }
+        
+        setInterval(updateTimer, 100);
+        
+        // Kill overlay management
+        const killOverlay = document.getElementById('killOverlay');
+        const killerNameEl = document.getElementById('killerName');
+        const killMethodEl = document.getElementById('killMethod');
+        const directionArrowEl = document.getElementById('directionArrow');
+        
+        // Respawn overlay management
+        const respawnOverlay = document.getElementById('respawnOverlay');
+        const respawnCountdownEl = document.getElementById('respawnCountdown');
+        
+        // Kill method icons
+        const killMethods = {
+            'knife': '🗡️',
+            'mine': '<img src="assets/images/mine.png" style="width: 24px; height: 24px; object-fit: contain;">',
+            'trap': '🪤',
+            'bomb': '💥'
+        };
+        
+        // Direction arrows based on spawn location
+        const directionArrows = {
+            'north': '⬆️',
+            'south': '⬇️', 
+            'east': '➡️',
+            'west': '⬅️',
+            'northeast': '↗️',
+            'northwest': '↖️',
+            'southeast': '↘️',
+            'southwest': '↙️'
+        };
+        
+        function showKillOverlay(killer, method, direction, displayTime = 3) {
+            killerNameEl.textContent = killer;
+            killMethodEl.innerHTML = killMethods[method] || '🗡️';
+            directionArrowEl.textContent = directionArrows[direction] || '⬆️';
+            
+            killOverlay.classList.remove('hidden');
+            
+            // Auto-hide after specified seconds for demo
+            setTimeout(() => {
+                hideKillOverlay();
+            }, displayTime * 1000);
+        }
+        
+        function hideKillOverlay() {
+            killOverlay.classList.add('hidden');
+        }
+        
+        function showRespawnOverlay(seconds = 3) {
+            respawnOverlay.classList.remove('hidden');
+            startRespawnCountdown(seconds);
+        }
+        
+        function hideRespawnOverlay() {
+            respawnOverlay.classList.add('hidden');
+            respawnOverlay.classList.remove('respawnComplete');
+        }
+        
+        function startRespawnCountdown(seconds) {
+            let timeLeft = seconds;
+            respawnCountdownEl.textContent = `Respawning in ${timeLeft}`;
+            
+            const timer = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    // Add blinking animation
+                    respawnCountdownEl.classList.add('blinking');
+                    respawnCountdownEl.textContent = `Respawning in ${timeLeft}`;
+                    
+                    // Remove blinking class after animation
+                    setTimeout(() => {
+                        respawnCountdownEl.classList.remove('blinking');
+                    }, 1000);
+                } else {
+                    // Flash white when respawned
+                    respawnOverlay.classList.add('respawnComplete');
+                    respawnCountdownEl.textContent = 'RESPAWNED';
+                    respawnCountdownEl.classList.remove('blinking');
+                    
+                    // Play refresh sound effect (in real app)
+                    // Audio would be played here: new Audio('refresh-sound.mp3').play();
+                    
+                    setTimeout(() => {
+                        hideRespawnOverlay();
+                        // In real app, this would trigger respawn logic
+                    }, 800);
+                    clearInterval(timer);
+                }
+            }, 1000);
+        }
+        
+        // Check URL parameters on page load
+        function checkUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            if (urlParams.get('killed') === 'true') {
+                const killer = urlParams.get('killer') || 'Enemy Player';
+                const method = urlParams.get('method') || 'knife';
+                const direction = urlParams.get('direction') || 'north';
+                const displayTime = parseInt(urlParams.get('display') || '3');
+                
+                showKillOverlay(killer, method, direction, displayTime);
+            }
+        }
+        
+        // Call on page load
+        window.addEventListener('load', checkUrlParams);
+        
+        function handleKill() {
+            // Simulate being killed by attacking
+            const scenarios = [
+                { killer: 'Johnson', method: 'knife', direction: 'south', respawn: 8 },
+                { killer: 'Miranda', method: 'mine', direction: 'south', respawn: 6 },
+                { killer: 'Enemy', method: 'bomb', direction: 'southwest', respawn: 4 }
+            ];
+            const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+            showKillOverlay(scenario.killer, scenario.method, scenario.direction, scenario.respawn);
+        }
+
+        function toggleItemActions() {
+            const itemActions = document.getElementById('itemActions');
+            itemActions.classList.toggle('hidden');
+        }
+
+        function toggleTrapMenu() {
+            // For now, just show the existing item actions (can be refined later)
+            toggleItemActions();
+        }
+
+        function handleInventory() {
+            // Create inventory overlay instead of alert
+            showInventoryOverlay();
+        }
+        
+        function showInventoryOverlay() {
+            const inventoryHtml = `
+                <div style="
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background-color: rgba(0, 0, 0, 0.9);
+                    border: 2px solid white;
+                    border-radius: 12px;
+                    padding: 20px;
+                    z-index: 3000;
+                    color: white;
+                    text-align: center;
+                    font-family: monospace;
+                    backdrop-filter: blur(10px);
+                " id="inventoryModal">
+                    <div style="font-size: 18px; font-weight: bold; margin-bottom: 15px;">🎒 INVENTORY</div>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border: 1px solid #333; border-radius: 6px;">
+                            <span><img src="assets/images/ghost.png" style="width: 16px; height: 16px; object-fit: contain; margin-right: 8px; vertical-align: middle;">Invisibility</span>
+                            <span style="color: #00FF00;">x1</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border: 1px solid #333; border-radius: 6px;">
+                            <span><img src="assets/images/shield.png" style="width: 16px; height: 16px; object-fit: contain; margin-right: 8px; vertical-align: middle;">Invincibility</span>
+                            <span style="color: #FF0000;">x0</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; border: 1px solid #333; border-radius: 6px;">
+                            <span><img src="assets/images/mine.png" style="width: 16px; height: 16px; object-fit: contain; margin-right: 8px; vertical-align: middle;">Proximity Mines</span>
+                            <span style="color: #00FF00;">x2</span>
+                        </div>
+                    </div>
+                    <button onclick="hideInventoryOverlay()" style="
+                        margin-top: 15px;
+                        padding: 8px 16px;
+                        background-color: #333;
+                        color: white;
+                        border: 1px solid white;
+                        border-radius: 4px;
+                        cursor: pointer;
+                    ">Close</button>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', inventoryHtml);
+        }
+        
+        function hideInventoryOverlay() {
+            const modal = document.getElementById('inventoryModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        // Item message system
+        function showItemMessage(message, duration = 3000) {
+            const messageEl = document.getElementById('itemMessage');
+            messageEl.textContent = message;
+            messageEl.className = 'itemMessage';
+            
+            // Auto-hide after duration
+            setTimeout(() => {
+                messageEl.classList.add('hidden');
+            }, duration);
+        }
+
+        // Item usage functions
+        function useInvisibility() {
+            showItemMessage('Invisible');
+            document.getElementById('itemActions').classList.add('hidden');
+        }
+
+        function useInvincibility() {
+            showItemMessage('Invincible');
+        }
+
+        function useProximityMine() {
+            showItemMessage('Placing Mine');
+            document.getElementById('itemActions').classList.add('hidden');
+        }
+
+        // Inventory management
+        let inventory = {
+            invisibility: 0,
+            invincibility: 0,
+            mine: 0
+        };
+
+        function collectPowerUp(itemId, itemName, element) {
+            // Add item to inventory
+            inventory[itemId]++;
+            
+            // Remove the power-up element
+            element.remove();
+            
+            // Show collection message
+            showItemMessage(`Collected ${itemName}!`);
+            
+            // Update inventory badge visibility
+            updateInventoryBadge();
+            
+            console.log(`COLLECTED: ${itemName}. Inventory:`, inventory);
+        }
+
+        function updateInventoryBadge() {
+            const badge = document.querySelector('.inventoryBadge');
+            const totalItems = inventory.invisibility + inventory.invincibility + inventory.mine;
+            
+            if (totalItems > 0) {
+                badge.style.display = 'block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        // Update inventory usage to check actual inventory
+        function useInvisibility() {
+            if (inventory.invisibility > 0) {
+                inventory.invisibility--;
+                showItemMessage('Invisible');
+                updateInventoryBadge();
+                document.getElementById('itemActions').classList.add('hidden');
+            } else {
+                showItemMessage('No Invisibility Available');
+            }
+        }
+
+        function useInvincibility() {
+            if (inventory.invincibility > 0) {
+                inventory.invincibility--;
+                showItemMessage('Invincible');
+                updateInventoryBadge();
+                document.getElementById('itemActions').classList.add('hidden');
+            } else {
+                showItemMessage('No Invincibility Available');
+            }
+        }
+
+        function useProximityMine() {
+            if (inventory.mine > 0) {
+                inventory.mine--;
+                showItemMessage('Placing Mine');
+                updateInventoryBadge();
+                document.getElementById('itemActions').classList.add('hidden');
+            } else {
+                showItemMessage('No Mines Available');
+            }
+        }
+
+        // Initialize inventory badge
+        updateInventoryBadge();
+
+        // Demo button to test kill overlay
+        function testKillOverlay() {
+            showKillOverlay('Johnson', 'mine', 'south', 3);
+        }
+    </script>
+</body>
+</html>
